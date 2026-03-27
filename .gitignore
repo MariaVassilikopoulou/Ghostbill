@@ -1,0 +1,11 @@
+# Backend
+backend/src/Ghostbill.Api/bin/
+backend/src/Ghostbill.Api/obj/
+
+# Frontend
+frontend/ghostbill-ui/node_modules/
+frontend/ghostbill-ui/dist/
+
+# General
+.env
+.DS_Store

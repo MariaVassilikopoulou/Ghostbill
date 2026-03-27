@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+*.vs
+*.suo
+*.ncrunch*
+*.DotSettings.user
+
+# VS Code
+.vscode/
+
+# Rider
+.idea/
+
+# Logs
+*.log
+
+# CSV/Test files
+*.csv
+
+# Node/React frontend
+node_modules/
+build/
+dist/
+.env
