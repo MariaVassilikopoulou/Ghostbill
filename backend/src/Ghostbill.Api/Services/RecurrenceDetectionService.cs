@@ -25,14 +25,18 @@ transactions = transactions
         return transactions
             .GroupBy(t => NormalizeDescription(t.Description))
             .Select(group =>
-            {
+            {   
                 var orderedTransactions = group.OrderBy(t => t.Date).ToList();
                 var occurrenceCount = orderedTransactions.Count;
-                var averageAmount = orderedTransactions.Average(t => t.Amount);
+                var averageAmount = orderedTransactions.Any() ? orderedTransactions.Average(t => t.Amount) : 0m;
 
                 var isFrequent = occurrenceCount >= 3;
-                var isRegular = IsRegular(orderedTransactions);
+                var isRegular = IsRegular(orderedTransactions, out var chargesPerYear);
                 var isAmountConsistent = IsAmountConsistent(orderedTransactions, averageAmount);
+             /*   if (group.Key == "nordicwell")
+{
+    Console.WriteLine($"chargesPerYear (nordicwell): {chargesPerYear}");
+}*/
 
                 var category = (isFrequent, isRegular, isAmountConsistent) switch
                 {
@@ -40,12 +44,14 @@ transactions = transactions
                     (true, true, false) => ExpenseCategory.Regular,
                     _ => ExpenseCategory.Noise
                 };
-
+                 
                 return new RecurringGroup
                 {
                     MerchantName = group.Key,
                     Transactions = orderedTransactions,
                     AverageAmount = averageAmount,
+                    MonthlyAmount = averageAmount,
+                    YearlyCost =Math.Round(averageAmount * chargesPerYear, 0),
                     OccurrenceCount = occurrenceCount,
                     Category = category
                 };
@@ -64,10 +70,11 @@ transactions = transactions
         return string.Join(" ", words.Take(2));
     }
 
-    private static bool IsRegular(List<Transaction> transactions)
+    private static bool IsRegular(List<Transaction> transactions, out decimal chargesPerYear)
     {
         if (transactions.Count < 3)
         {
+            chargesPerYear = 12m;
             return false;
         }
 
@@ -76,6 +83,8 @@ transactions = transactions
         {
             gaps.Add((transactions[i].Date - transactions[i - 1].Date).TotalDays);
         }
+
+        chargesPerYear = CalculateChargesPerYear(gaps);
 
         bool MatchesPattern(double min, double max, double tolerance)
         {
@@ -89,6 +98,23 @@ transactions = transactions
     private static bool IsWithinRange(double value, double min, double max, double tolerance)
     {
         return value >= (min - tolerance) && value <= (max + tolerance);
+    }
+
+    private static decimal CalculateChargesPerYear(List<double> gaps)
+    {
+        if (gaps.Count == 0)
+        {
+            return 12m;
+        }
+
+        var avgGapDays = gaps.Average();
+        if (avgGapDays <= 0)
+        {
+            return 12m;
+        }
+
+        var chargesPerYear = 365.0 / avgGapDays;
+        return (decimal)chargesPerYear;
     }
 
     private static bool IsAmountConsistent(List<Transaction> transactions, decimal averageAmount)

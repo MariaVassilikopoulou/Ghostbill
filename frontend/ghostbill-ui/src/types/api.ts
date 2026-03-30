@@ -10,6 +10,8 @@ export interface RecurringGroup {
   merchantName: string;
   transactions: Transaction[];
   averageAmount: number;
+  monthlyAmount: number;
+  yearlyCost: number;
   occurrenceCount: number;
   category: ExpenseCategory;
 }

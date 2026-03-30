@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { analyzeTransactions } from "./services/api";
-import type { AnalysisResult } from "./types/api";
+import type { AnalysisResult, RecurringGroup } from "./types/api";
 import "./App.css";
 
 function App() {
@@ -9,10 +9,11 @@ function App() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const formatAmount = (amount: number) => {
-    const abs = Math.abs(amount);
-    return abs % 1 === 0 ? abs.toFixed(0) : abs.toFixed(2);
-  };
+  const formatAmount = (amount: number | undefined | null) => {
+  const num = amount ?? 0;
+  const abs = Math.abs(num);
+  return abs % 1 === 0 ? abs.toFixed(0) : abs.toFixed(2);
+};
   const formatMerchant = (name: string) =>
     name.length <= 3
       ? name.toUpperCase()
@@ -30,14 +31,26 @@ function App() {
     setLoading(true);
 
     try {
-      const analysisResult = await analyzeTransactions(file);
-      setResult(analysisResult);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+      
+     const mapRecurringGroups = (groups: RecurringGroup[]) =>
+  groups.map(g => ({
+    ...g,
+    monthly_amount: g.monthlyAmount,
+    yearly_cost: g.yearlyCost,
+  }));
+
+    const analysisResult = await analyzeTransactions(file);
+setResult({
+  ...analysisResult,
+  ghosts: mapRecurringGroups(analysisResult.ghosts),
+  regulars: mapRecurringGroups(analysisResult.regulars),
+});
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Analysis failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <main className="app">
@@ -115,6 +128,12 @@ function App() {
                     <p className="merchant-amount ghost-amount">
                       −{formatAmount(ghost.averageAmount)} SEK
                     </p>
+                    <p className="merchant-amount ghost-amount">
+                     monthly_amount: −{ghost.monthlyAmount !== undefined ? formatAmount(ghost.monthlyAmount) : "0"} SEK
+                    </p>
+                    <p className="merchant-amount ghost-amount">
+                      yearly_cost:   −{ghost.yearlyCost !== undefined ? formatAmount(ghost.yearlyCost) : "0"} SEK
+                    </p>
                   </div>
                 </article>
               ))}
@@ -144,6 +163,12 @@ function App() {
                     <p className="merchant-amount regular-amount">
                       −{formatAmount(regular.averageAmount)} SEK
                     </p>
+                    <p className="merchant-amount regular-amount">
+                     monthly_amount: −{regular.monthlyAmount !== undefined ? formatAmount(regular.monthlyAmount) : "0"} SEK
+                    </p>
+                    <p className="merchant-amount regular-amount">
+                      yearly_cost:   −{regular.yearlyCost !== undefined ? formatAmount(regular.yearlyCost) : "0"} SEK
+                    </p>
                   </div>
                 </article>
               ))}
@@ -156,3 +181,4 @@ function App() {
 }
 
 export default App;
+
