@@ -30,6 +30,20 @@ public class TransactionsController : ControllerBase
 
             var parseResult = csvParsingService.ParseTransactions(tempFilePath);
             var transactions = parseResult.Transactions ?? new List<Transaction>();
+
+            if (transactions.Count == 0)
+            {
+                return Ok(new AnalysisResult
+                {
+                    Ghosts = new List<RecurringGroup>(),
+                    Regulars = new List<RecurringGroup>(),
+                    Transactions = transactions,
+                    SkippedRows = parseResult.SkippedRows,
+                    TotalTransactionsAnalyzed = 0,
+                    TotalMonthlyGhostCost = 0m
+                });
+            }
+
             var recurringGroups = recurrenceDetectionService.DetectRecurringGroups(transactions);
 
             var ghosts = recurringGroups
