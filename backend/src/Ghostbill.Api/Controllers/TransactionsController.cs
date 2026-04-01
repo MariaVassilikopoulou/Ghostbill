@@ -28,7 +28,8 @@ public class TransactionsController : ControllerBase
             var csvParsingService = new CsvParsingService();
             var recurrenceDetectionService = new RecurrenceDetectionService();
 
-            var transactions = csvParsingService.ParseTransactions(tempFilePath);
+            var parseResult = csvParsingService.ParseTransactions(tempFilePath);
+            var transactions = parseResult.Transactions ?? new List<Transaction>();
             var recurringGroups = recurrenceDetectionService.DetectRecurringGroups(transactions);
 
             var ghosts = recurringGroups
@@ -43,6 +44,8 @@ public class TransactionsController : ControllerBase
             {
                 Ghosts = ghosts,
                 Regulars = regulars,
+                Transactions = transactions,
+                SkippedRows = parseResult.SkippedRows,
                 TotalTransactionsAnalyzed = transactions.Count,
                 TotalMonthlyGhostCost = ghosts.Sum(g => Math.Abs(g.AverageAmount))
             };

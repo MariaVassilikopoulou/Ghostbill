@@ -21,4 +21,5 @@ export interface AnalysisResult {
   regulars: RecurringGroup[];
   totalTransactionsAnalyzed: number;
   totalMonthlyGhostCost: number;
+   transactions: Transaction[]; 
 }
