@@ -1,4 +1,5 @@
 using Ghostbill.Api.Models;
+using Ghostbill.Api.Parsing.Resolution;
 using Ghostbill.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,15 +9,38 @@ namespace Ghostbill.Api.Controllers;
 [Route("api/transactions")]
 public class TransactionsController : ControllerBase
 {
+    private const long MaxFileSizeBytes = 5 * 1024 * 1024;
+    private readonly ParserResolutionService _parserResolutionService;
+    private readonly RecurrenceDetectionService _recurrenceDetectionService;
+
+    public TransactionsController(
+        ParserResolutionService parserResolutionService,
+        RecurrenceDetectionService recurrenceDetectionService)
+    {
+        _parserResolutionService = parserResolutionService;
+        _recurrenceDetectionService = recurrenceDetectionService;
+    }
+
     [HttpPost("analyze")]
     public async Task<ActionResult<AnalysisResult>> Analyze(IFormFile csvFile)
     {
-        if (csvFile is null)
+        if (csvFile is null || csvFile.Length == 0)
         {
-            return BadRequest();
+            return BadRequest(CreateError("Missing or empty file.", "INVALID_FILE"));
         }
 
-        var tempFilePath = Path.GetTempFileName();
+        if (csvFile.Length > MaxFileSizeBytes)
+        {
+            return BadRequest(CreateError("File exceeds the 5 MB limit.", "INVALID_FILE"));
+        }
+
+        var extension = Path.GetExtension(csvFile.FileName);
+        if (!_parserResolutionService.TryResolve(extension, out var parser) || parser is null)
+        {
+            return BadRequest(CreateError("Unsupported file format.", "UNSUPPORTED_FORMAT"));
+        }
+
+        var tempFilePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + extension);
 
         try
         {
@@ -25,10 +49,16 @@ public class TransactionsController : ControllerBase
                 await csvFile.CopyToAsync(stream);
             }
 
-            var csvParsingService = new CsvParsingService();
-            var recurrenceDetectionService = new RecurrenceDetectionService();
+            ParseResult parseResult;
+            try
+            {
+                parseResult = parser.Parse(tempFilePath);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(CreateError("File parsing failed.", "PARSE_ERROR", ex.Message));
+            }
 
-            var parseResult = csvParsingService.ParseTransactions(tempFilePath);
             var transactions = parseResult.Transactions ?? new List<Transaction>();
 
             if (transactions.Count == 0)
@@ -44,7 +74,7 @@ public class TransactionsController : ControllerBase
                 });
             }
 
-            var recurringGroups = recurrenceDetectionService.DetectRecurringGroups(transactions);
+            var recurringGroups = _recurrenceDetectionService.DetectRecurringGroups(transactions);
 
             var ghosts = recurringGroups
                 .Where(g => g.Category == ExpenseCategory.Ghost)
@@ -67,11 +97,36 @@ public class TransactionsController : ControllerBase
             return Ok(result);
         }
         finally
+{
+    if (System.IO.File.Exists(tempFilePath))
+    {
+        int attempts = 0;
+        const int maxAttempts = 3;
+        const int delayMs = 50;
+
+        while (attempts < maxAttempts)
         {
-            if (System.IO.File.Exists(tempFilePath))
+            try
             {
                 System.IO.File.Delete(tempFilePath);
+                break; 
+            }
+            catch (IOException)
+            {
+                attempts++;
+                if (attempts >= maxAttempts) break; 
+                Thread.Sleep(delayMs); 
             }
         }
+    }
+}
+    }
+
+
+    private static object CreateError(string message, string code, string? details = null)
+    {
+        return details is null
+            ? new { message, code }
+            : new { message, code, details };
     }
 }
